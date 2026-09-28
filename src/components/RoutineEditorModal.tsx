@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { X, Plus, Trash2, ArrowUp, ArrowDown, Search, Check, Dumbbell, UserCheck, Library } from 'lucide-react';
 import { useDialog } from './DialogProvider';
+import { NumberInput } from './NumberInput';
 import { WorkoutRoutine, Exercise, DayOfWeek, StudentAccount } from '../types/workout';
 import { CARDIO_FIELDS, DAYS_CONFIG, MUSCLE_GROUP_LABELS, cleanCardio, formatPrescription, isCardio } from '../utils/calculations';
 
@@ -314,99 +315,89 @@ export const RoutineEditorModal: React.FC<RoutineEditorModalProps> = ({
                         {isCardio(ex) ? (
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {CARDIO_FIELDS.map((f) => (
-                              <label key={f.key} className="block">
-                                <span className="block text-[11px] text-neutral-400 mb-1">
+                              <div key={f.key}>
+                                <span className="block text-[11px] font-medium text-neutral-400 mb-1">
                                   {f.label} <span className="text-neutral-600">({f.unit})</span>
                                 </span>
-                                <input
-                                  type="number"
-                                  inputMode="decimal"
-                                  min="0"
-                                  step={f.step}
-                                  value={ex.cardio?.[f.key] ?? ''}
-                                  onChange={(e) =>
-                                    handleUpdateExerciseField(index, 'cardio', {
-                                      ...ex.cardio,
-                                      [f.key]: e.target.value === '' ? undefined : Number(e.target.value),
-                                    })
-                                  }
+                                <NumberInput
+                                  value={ex.cardio?.[f.key]}
+                                  onChange={(v) => handleUpdateExerciseField(index, 'cardio', { ...ex.cardio, [f.key]: v })}
+                                  min={0}
+                                  step={Number(f.step)}
+                                  allowEmpty
                                   placeholder="Livre"
-                                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                  aria-label={f.label}
                                 />
-                              </label>
+                              </div>
                             ))}
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <label className="block">
-                              <span className="block text-[11px] text-neutral-400 mb-1">Séries</span>
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min="1"
-                                max="20"
+                            <div>
+                              <span className="block text-[11px] font-medium text-neutral-400 mb-1">Séries</span>
+                              <NumberInput
                                 value={ex.targetSets}
-                                onChange={(e) => handleUpdateExerciseField(index, 'targetSets', Number(e.target.value))}
-                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                onChange={(v) => handleUpdateExerciseField(index, 'targetSets', v ?? 1)}
+                                min={1}
+                                max={20}
+                                aria-label="Séries"
                               />
-                            </label>
-                            <label className="block">
-                              <span className="block text-[11px] text-neutral-400 mb-1">Repetições</span>
+                            </div>
+                            <div>
+                              <label htmlFor={`reps-${ex.id}`} className="block text-[11px] font-medium text-neutral-400 mb-1">Repetições</label>
                               <input
+                                id={`reps-${ex.id}`}
                                 type="text"
                                 value={ex.targetReps}
                                 onChange={(e) => handleUpdateExerciseField(index, 'targetReps', e.target.value)}
                                 placeholder="8-12"
-                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2.5 sm:py-2 text-center font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
                               />
-                            </label>
-                            <label className="block">
-                              <span className="block text-[11px] text-neutral-400 mb-1">
+                            </div>
+                            <div>
+                              <span className="block text-[11px] font-medium text-neutral-400 mb-1">
                                 Carga <span className="text-neutral-600">(kg)</span>
                               </span>
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                min="0"
-                                step="0.5"
-                                value={ex.defaultWeightKg ?? ''}
-                                onChange={(e) =>
-                                  handleUpdateExerciseField(
-                                    index,
-                                    'defaultWeightKg',
-                                    e.target.value === '' ? undefined : Number(e.target.value)
-                                  )
-                                }
+                              <NumberInput
+                                value={ex.defaultWeightKg}
+                                onChange={(v) => handleUpdateExerciseField(index, 'defaultWeightKg', v)}
+                                min={0}
+                                step={0.5}
+                                allowEmpty
                                 placeholder="Livre"
-                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                aria-label="Carga em kg"
                               />
-                            </label>
-                            <label className="block">
-                              <span className="block text-[11px] text-neutral-400 mb-1">
+                            </div>
+                            <div>
+                              <span className="block text-[11px] font-medium text-neutral-400 mb-1">
                                 Descanso <span className="text-neutral-600">(s)</span>
                               </span>
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min="10"
-                                max="300"
-                                step="5"
+                              <NumberInput
                                 value={ex.restSeconds}
-                                onChange={(e) => handleUpdateExerciseField(index, 'restSeconds', Number(e.target.value))}
-                                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 font-mono tabular-nums text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                                onChange={(v) => handleUpdateExerciseField(index, 'restSeconds', v ?? 0)}
+                                min={0}
+                                max={600}
+                                step={5}
+                                aria-label="Descanso em segundos"
                               />
-                            </label>
+                            </div>
                           </div>
                         )}
 
                         {/* Notes */}
-                        <input
-                          type="text"
-                          value={ex.notes || ''}
-                          onChange={(e) => handleUpdateExerciseField(index, 'notes', e.target.value)}
-                          placeholder="Observações da execução (ex: cadência controlada, pausa embaixo)..."
-                          className="w-full text-xs text-neutral-400 placeholder:text-neutral-600 bg-transparent border-none p-0 focus:outline-none"
-                        />
+                        <div>
+                          <label htmlFor={`notes-${ex.id}`} className="block text-[11px] font-medium text-neutral-400 mb-1">
+                            Observações da execução <span className="text-neutral-600">(opcional)</span>
+                          </label>
+                          <textarea
+                            id={`notes-${ex.id}`}
+                            rows={2}
+                            value={ex.notes || ''}
+                            onChange={(e) => handleUpdateExerciseField(index, 'notes', e.target.value)}
+                            placeholder="Ex: cadência controlada, pausa de 1s embaixo, amplitude completa..."
+                            className="block w-full resize-y rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm sm:text-xs leading-relaxed text-neutral-100 placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
 

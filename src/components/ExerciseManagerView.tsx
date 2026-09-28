@@ -3,6 +3,7 @@ import { Plus, Search, Trash2, Edit3, Upload, X, Check, Dumbbell, Eye, Loader2 }
 import { CardioTarget, Exercise, MuscleGroup } from '../types/workout';
 import { CARDIO_FIELDS, MUSCLE_GROUP_LABELS, cleanCardio, formatPrescription, isCardio } from '../utils/calculations';
 import { useDialog } from './DialogProvider';
+import { NumberInput } from './NumberInput';
 import { MAX_IMAGE_BYTES, uploadImage } from '../utils/storage';
 
 interface ExerciseManagerViewProps {
@@ -368,23 +369,18 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
                   <div className="grid grid-cols-2 gap-3">
                     {CARDIO_FIELDS.map((f) => (
                       <div key={f.key}>
-                        <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                        <span className="block text-xs font-semibold text-neutral-300 mb-1.5">
                           {f.label} <span className="font-normal text-neutral-500">({f.unit})</span>
-                        </label>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          step={f.step}
-                          value={cardio[f.key] ?? ''}
-                          onChange={(e) =>
-                            setCardio({
-                              ...cardio,
-                              [f.key]: e.target.value === '' ? undefined : Number(e.target.value),
-                            })
-                          }
+                        </span>
+                        <NumberInput
+                          value={cardio[f.key]}
+                          onChange={(v) => setCardio({ ...cardio, [f.key]: v })}
+                          min={0}
+                          step={Number(f.step)}
+                          allowEmpty
                           placeholder="Livre"
-                          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                          surface="sunken"
+                          aria-label={f.label}
                         />
                       </div>
                     ))}
@@ -393,17 +389,14 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                      Séries Alvo
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      max="20"
+                    <span className="block text-xs font-semibold text-neutral-300 mb-1.5">Séries Alvo</span>
+                    <NumberInput
                       value={targetSets}
-                      onChange={(e) => setTargetSets(Number(e.target.value))}
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                      onChange={(v) => setTargetSets(v ?? 1)}
+                      min={1}
+                      max={20}
+                      surface="sunken"
+                      aria-label="Séries alvo"
                     />
                   </div>
                   <div>
@@ -415,35 +408,36 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
                       value={targetReps}
                       onChange={(e) => setTargetReps(e.target.value)}
                       placeholder="8 - 12"
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 sm:py-2 text-center text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                    <span className="block text-xs font-semibold text-neutral-300 mb-1.5">
                       Carga <span className="font-normal text-neutral-500">(kg)</span>
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.5"
-                      value={defaultWeightKg ?? ''}
-                      onChange={(e) => setDefaultWeightKg(e.target.value === '' ? undefined : Number(e.target.value))}
+                    </span>
+                    <NumberInput
+                      value={defaultWeightKg}
+                      onChange={setDefaultWeightKg}
+                      min={0}
+                      step={0.5}
+                      allowEmpty
                       placeholder="Livre"
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                      surface="sunken"
+                      aria-label="Carga em kg"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
+                    <span className="block text-xs font-semibold text-neutral-300 mb-1.5">
                       Descanso <span className="font-normal text-neutral-500">(s)</span>
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      step="5"
+                    </span>
+                    <NumberInput
                       value={restSeconds}
-                      onChange={(e) => setRestSeconds(Number(e.target.value))}
-                      className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                      onChange={(v) => setRestSeconds(v ?? 0)}
+                      min={0}
+                      max={600}
+                      step={5}
+                      surface="sunken"
+                      aria-label="Descanso em segundos"
                     />
                   </div>
                 </div>
