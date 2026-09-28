@@ -32,6 +32,7 @@ export default function App() {
   const [sessions, setSessions] = useState<WorkoutSessionLog[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadError, setLoadError] = useState('');
 
   // Navigation tab: 'treinos' | 'exercicios' | 'alunos'
   const [activeTab, setActiveTab] = useState<'treinos' | 'exercicios' | 'alunos'>('treinos');
@@ -65,6 +66,8 @@ export default function App() {
       })
       .catch((err) => {
         console.error('Failed to load data', err);
+        // Network failures come as TypeError; server-side problems carry their own message
+        setLoadError(err instanceof TypeError ? '' : err?.message || '');
         setLoadState('error');
       });
   }, []);
@@ -119,7 +122,9 @@ export default function App() {
           <>
             <AlertCircle className="h-7 w-7 text-rose-400" />
             <p className="text-sm font-semibold text-neutral-100">Não foi possível conectar ao servidor.</p>
-            <p className="text-xs text-neutral-500">Verifique se a plataforma está rodando e tente novamente.</p>
+            <p className="max-w-sm text-xs text-neutral-500">
+              {loadError || 'Verifique se a plataforma está rodando e tente novamente.'}
+            </p>
             <button
               onClick={fetchData}
               className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-neutral-950 hover:bg-emerald-400"

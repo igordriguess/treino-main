@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Search, Trash2, Edit3, Upload, X, Check, Dumbbell, Eye } from 'lucide-react';
+import { Plus, Search, Trash2, Edit3, Upload, X, Check, Dumbbell, Eye, Loader2 } from 'lucide-react';
 import { CardioTarget, Exercise, MuscleGroup } from '../types/workout';
 import { CARDIO_FIELDS, MUSCLE_GROUP_LABELS, cleanCardio, formatPrescription, isCardio } from '../utils/calculations';
 import { useDialog } from './DialogProvider';
+import { MAX_IMAGE_BYTES, uploadImage } from '../utils/storage';
 
 interface ExerciseManagerViewProps {
   exercises: Exercise[];
@@ -35,6 +36,7 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
   const [notes, setNotes] = useState('');
   const [defaultWeightKg, setDefaultWeightKg] = useState<number | undefined>(undefined);
   const [cardio, setCardio] = useState<CardioTarget>({});
+  const [uploading, setUploading] = useState(false);
 
   const handleOpenCreateModal = () => {
     setEditingExercise(null);
@@ -64,22 +66,24 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      notify('Arquivo muito grande. O limite é de 5MB para imagem ou GIF.', 'error');
+    if (file.size > MAX_IMAGE_BYTES) {
+      notify('Arquivo muito grande. O limite é de 4MB para imagem ou GIF.', 'error');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (typeof event.target?.result === 'string') {
-        setImageUrl(event.target.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      setImageUrl(await uploadImage(file));
+    } catch (err) {
+      notify(err instanceof Error ? err.message : 'Não foi possível enviar a imagem.', 'error');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -446,7 +450,7 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
                   Imagem ou GIF Demonstrativo
                 </label>
                 <div className="flex gap-2">
-                  {imageUrl.startsWith('data:') ? (
+                  {imageUrl.startsWith('data:') || imageUrl.startsWith('/api/uploads/') ? (
                     <div className="flex-1 flex items-center rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-400">
                       Arquivo enviado do dispositivo
                     </div>
@@ -460,12 +464,13 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
                     />
                   )}
                   <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 px-3.5 py-2.5 text-sm font-semibold text-neutral-200">
-                    <Upload className="h-4 w-4" />
-                    <span>Enviar</span>
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    <span>{uploading ? 'Enviando...' : 'Enviar'}</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
                       className="hidden"
+                      disabled={uploading}
                       onChange={handleFileUpload}
                     />
                   </label>

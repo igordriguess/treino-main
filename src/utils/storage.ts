@@ -91,6 +91,20 @@ export function saveCollection<K extends CollectionName>(name: K, items: AppData
   return next;
 }
 
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+// Uploads an image/GIF and returns the URL to store in the exercise.
+export async function uploadImage(file: File): Promise<string> {
+  const res = await fetch('/api/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.url) throw new Error(body?.error || `Erro ${res.status}`);
+  return body.url as string;
+}
+
 export async function login(username: string, password: string): Promise<AuthUser | null> {
   try {
     return await request<AuthUser>('/api/login', {

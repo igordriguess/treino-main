@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "irontrack",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@vercel/blob": "^2.8.0",
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
@@ -29,5 +30,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
