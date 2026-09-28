@@ -14,6 +14,15 @@ export type MuscleGroup =
   | 'panturrilha' 
   | 'cardio';
 
+// Cardio prescription; every field is optional and an empty one is shown as "Livre".
+export interface CardioTarget {
+  distanceKm?: number;
+  durationMinutes?: number;
+  avgSpeedKmh?: number;
+  maxSpeedKmh?: number;
+  maxSpeedMinutes?: number; // time spent at max speed
+}
+
 export interface Exercise {
   id: string;
   name: string;
@@ -24,19 +33,18 @@ export interface Exercise {
   imageUrl?: string; // image or gif url / data url
   notes?: string;
   defaultWeightKg?: number;
+  cardio?: CardioTarget;
+  libraryExerciseId?: string; // ID of the library exercise this routine entry was assigned from
 }
 
 export interface WorkoutRoutine {
   id: string;
   name: string;
   description?: string;
-  studentId?: string; // ID of the student it belongs to, or 'all'
+  studentIds: string[]; // IDs of the students it is assigned to (empty = no student)
   scheduledDay: DayOfWeek;
-  scheduledTime?: string; // e.g. "18:30"
   durationMinutes: number;
   exercises: Exercise[];
-  colorTheme?: string;
-  coverImage?: string;
 }
 
 export type SetType = 'warmup' | 'normal' | 'dropset' | 'failure';
@@ -48,8 +56,6 @@ export interface WorkoutSetRecord {
   weightKg: number;
   reps: number;
   completed: boolean;
-  rpe?: number; // 1-10
-  notes?: string;
 }
 
 export interface ExerciseLog {
@@ -57,8 +63,6 @@ export interface ExerciseLog {
   exerciseName: string;
   muscleGroup?: MuscleGroup;
   sets: WorkoutSetRecord[];
-  bestWeightKg?: number;
-  estimated1RM?: number;
 }
 
 export interface WorkoutSessionLog {
@@ -73,8 +77,6 @@ export interface WorkoutSessionLog {
   totalVolumeKg: number;
   totalSets: number;
   exerciseLogs: ExerciseLog[];
-  feeling?: 'otimo' | 'bom' | 'normal' | 'pesado' | 'cansado';
-  sessionNotes?: string;
 }
 
 export interface StudentAccount {

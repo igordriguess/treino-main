@@ -11,35 +11,6 @@ class SoundPlayer {
     }
   }
 
-  playTimerBeep() {
-    try {
-      this.init();
-      if (!this.ctx) return;
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume();
-      }
-      
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now); // A5
-      osc.frequency.setValueAtTime(1760, now + 0.1); // A6
-
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.35);
-    } catch {
-      // Audio not supported or blocked
-    }
-  }
-
   playSetComplete() {
     try {
       this.init();

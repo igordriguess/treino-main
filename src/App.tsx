@@ -3,31 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  Dumbbell, 
-  Plus, 
-  Search, 
-  Users, 
-  ShieldCheck, 
-  Sparkles,
-  UserCheck,
-  Filter
-} from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Dumbbell, Plus, Search, Users, ShieldCheck, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
 
 import { WorkoutRoutine, WorkoutSessionLog, Exercise, StudentAccount, AuthUser } from './types/workout';
-import { 
-  loadRoutines, 
-  saveRoutines, 
-  loadSessions, 
-  saveSessions, 
-  loadStudents, 
-  saveStudents, 
-  loadExercises,
-  saveExercises,
-  loadCurrentUser, 
-  saveCurrentUser 
-} from './utils/storage';
+import { AppData, CollectionName, loadAppData, saveCollection, loadCurrentUser, saveCurrentUser } from './utils/storage';
 import { getCurrentDayOfWeek } from './utils/calculations';
 
 import { LoginView } from './components/LoginView';
@@ -35,19 +15,23 @@ import { Navbar } from './components/Navbar';
 import { WorkoutCard } from './components/WorkoutCard';
 import { RoutineEditorModal } from './components/RoutineEditorModal';
 import { ActiveWorkoutModal } from './components/ActiveWorkoutModal';
-import { StudentManagerModal } from './components/StudentManagerModal';
+import { StudentManagerView } from './components/StudentManagerView';
 import { ExerciseManagerView } from './components/ExerciseManagerView';
 import { ExerciseDetailModal } from './components/ExerciseDetailModal';
+import { useDialog } from './components/DialogProvider';
 
 export default function App() {
+  const { notify } = useDialog();
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => loadCurrentUser());
 
   // Data state
-  const [students, setStudents] = useState<StudentAccount[]>(() => loadStudents());
-  const [routines, setRoutines] = useState<WorkoutRoutine[]>(() => loadRoutines());
-  const [sessions, setSessions] = useState<WorkoutSessionLog[]>(() => loadSessions());
-  const [exercises, setExercises] = useState<Exercise[]>(() => loadExercises());
+  const [students, setStudents] = useState<StudentAccount[]>([]);
+  const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
+  const [sessions, setSessions] = useState<WorkoutSessionLog[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // Navigation tab: 'treinos' | 'exercicios' | 'alunos'
   const [activeTab, setActiveTab] = useState<'treinos' | 'exercicios' | 'alunos'>('treinos');
@@ -62,22 +46,53 @@ export default function App() {
   const [activeWorkout, setActiveWorkout] = useState<WorkoutRoutine | null>(null);
   const [selectedExerciseDetail, setSelectedExerciseDetail] = useState<Exercise | null>(null);
 
-  // Sync to storage
-  useEffect(() => {
-    saveStudents(students);
-  }, [students]);
+  // Load everything from the server (JSON files in ./data)
+  // Last JSON sent/received per collection, so unchanged data is never re-written
+  const lastSaved = useRef<Partial<Record<CollectionName, string>>>({});
+
+  const fetchData = useCallback(() => {
+    setLoadState('loading');
+    loadAppData()
+      .then((data: AppData) => {
+        (Object.keys(data) as CollectionName[]).forEach((name) => {
+          lastSaved.current[name] = JSON.stringify(data[name]);
+        });
+        setStudents(data.students);
+        setRoutines(data.routines);
+        setSessions(data.sessions);
+        setExercises(data.exercises);
+        setLoadState('ready');
+      })
+      .catch((err) => {
+        console.error('Failed to load data', err);
+        setLoadState('error');
+      });
+  }, []);
 
   useEffect(() => {
-    saveRoutines(routines);
-  }, [routines]);
+    fetchData();
+  }, [fetchData]);
 
-  useEffect(() => {
-    saveSessions(sessions);
-  }, [sessions]);
+  // Persist each collection whenever it changes
+  const persist = useCallback(
+    <K extends CollectionName>(name: K, items: AppData[K]) => {
+      if (loadState !== 'ready') return;
+      const json = JSON.stringify(items);
+      if (lastSaved.current[name] === json) return;
+      lastSaved.current[name] = json;
+      saveCollection(name, items).catch((err) => {
+        console.error(`Failed to save ${name}`, err);
+        delete lastSaved.current[name]; // retry on the next change
+        notify('Não foi possível salvar as alterações. Verifique se o servidor está rodando.', 'error');
+      });
+    },
+    [loadState, notify]
+  );
 
-  useEffect(() => {
-    saveExercises(exercises);
-  }, [exercises]);
+  useEffect(() => persist('students', students), [students, persist]);
+  useEffect(() => persist('routines', routines), [routines, persist]);
+  useEffect(() => persist('sessions', sessions), [sessions, persist]);
+  useEffect(() => persist('exercises', exercises), [exercises, persist]);
 
   // Auth actions
   const handleLoginSuccess = (user: AuthUser) => {
@@ -92,9 +107,35 @@ export default function App() {
     setActiveTab('treinos');
   };
 
+  if (loadState !== 'ready') {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-3 bg-neutral-950 px-6 text-center text-neutral-300">
+        {loadState === 'loading' ? (
+          <>
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+            <p className="text-sm">Carregando...</p>
+          </>
+        ) : (
+          <>
+            <AlertCircle className="h-7 w-7 text-rose-400" />
+            <p className="text-sm font-semibold text-neutral-100">Não foi possível conectar ao servidor.</p>
+            <p className="text-xs text-neutral-500">Verifique se a plataforma está rodando e tente novamente.</p>
+            <button
+              onClick={fetchData}
+              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-neutral-950 hover:bg-emerald-400"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Tentar novamente
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   // If not logged in, render Login view
   if (!currentUser) {
-    return <LoginView students={students} onLoginSuccess={handleLoginSuccess} />;
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
   const isAdmin = currentUser.role === 'admin';
@@ -111,13 +152,25 @@ export default function App() {
   const handleDeleteStudent = (studentId: string) => {
     setStudents(students.filter((s) => s.id !== studentId));
     // Clean up routine associations
-    setRoutines(routines.map((r) => (r.studentId === studentId ? { ...r, studentId: 'all' } : r)));
+    setRoutines(routines.map((r) => ({ ...r, studentIds: r.studentIds.filter((id) => id !== studentId) })));
   };
 
   // Exercise management handlers
   const handleSaveExercise = (exercise: Exercise) => {
     if (exercises.some((e) => e.id === exercise.id)) {
       setExercises(exercises.map((e) => (e.id === exercise.id ? exercise : e)));
+      // Keep identity fields of routines that use this library exercise in sync;
+      // sets/reps/rest stay as prescribed in each routine.
+      setRoutines((prev) =>
+        prev.map((r) => ({
+          ...r,
+          exercises: r.exercises.map((e) =>
+            e.libraryExerciseId === exercise.id
+              ? { ...e, name: exercise.name, muscleGroup: exercise.muscleGroup, imageUrl: exercise.imageUrl }
+              : e
+          ),
+        }))
+      );
     } else {
       setExercises([...exercises, exercise]);
     }
@@ -158,7 +211,7 @@ export default function App() {
   const handleFinishLiveWorkout = (newSession: WorkoutSessionLog) => {
     setSessions([newSession, ...sessions]);
     setActiveWorkout(null);
-    alert('Treino concluído com sucesso!');
+    notify('Treino concluído! Bom trabalho.');
   };
 
   // Filter routines strictly:
@@ -167,13 +220,13 @@ export default function App() {
   const visibleRoutines = routines.filter((r) => {
     if (!isAdmin) {
       // Student strictly sees ONLY workouts assigned to their account
-      return r.studentId === currentUser.id;
+      return r.studentIds.includes(currentUser.id);
     }
 
     // Admin filter
     if (selectedStudentFilter !== 'todos') {
-      if (selectedStudentFilter === 'geral' && r.studentId !== 'all') return false;
-      if (selectedStudentFilter !== 'geral' && r.studentId !== selectedStudentFilter) return false;
+      if (selectedStudentFilter === 'sem-aluno' && r.studentIds.length > 0) return false;
+      if (selectedStudentFilter !== 'sem-aluno' && !r.studentIds.includes(selectedStudentFilter)) return false;
     }
 
     // Text search
@@ -199,7 +252,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className={`flex-1 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 ${isAdmin ? 'pb-24 md:pb-8' : ''}`}>
         {/* TAB 1: TREINOS */}
         {currentTab === 'treinos' && (
           <div className="space-y-6">
@@ -221,17 +274,17 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="hidden md:flex flex-wrap items-center gap-2.5">
                   <button
                     onClick={() => setActiveTab('exercicios')}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3.5 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-750 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3.5 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-700 transition-colors"
                   >
                     <Dumbbell className="h-4 w-4 text-emerald-400" />
                     <span>Gerenciar Exercícios ({exercises.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('alunos')}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3.5 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-750 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 px-3.5 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-700 transition-colors"
                   >
                     <Users className="h-4 w-4 text-emerald-400" />
                     <span>Alunos ({students.length})</span>
@@ -254,7 +307,7 @@ export default function App() {
                   Seus Treinos Prescritos
                 </h1>
                 <p className="text-xs text-neutral-400 mt-0.5">
-                  Acesse sua ficha de treino, visualize a execução técnica dos exercícios e marque suas séries.
+                  Toque em um treino para ver cada exercício, como executar e marcar como concluído.
                 </p>
               </div>
             )}
@@ -277,7 +330,7 @@ export default function App() {
                     className="rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 focus:border-emerald-500 focus:outline-none"
                   >
                     <option value="todos">Todos os Alunos</option>
-                    <option value="geral">Geral (Todos)</option>
+                    <option value="sem-aluno">Sem aluno vinculado</option>
                     {students.map((st) => (
                       <option key={st.id} value={st.id}>
                         Aluno: {st.name}
@@ -302,7 +355,7 @@ export default function App() {
 
             {/* Workouts Grid */}
             {visibleRoutines.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {visibleRoutines.map((routine) => (
                   <WorkoutCard
                     key={routine.id}
@@ -342,7 +395,7 @@ export default function App() {
                       </button>
                       <button
                         onClick={() => setActiveTab('exercicios')}
-                        className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-xs font-semibold text-neutral-200 hover:bg-neutral-750 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-xs font-semibold text-neutral-200 hover:bg-neutral-700 transition-colors"
                       >
                         <Dumbbell className="h-4 w-4 text-emerald-400" />
                         <span>Cadastrar Exercícios</span>
@@ -377,13 +430,11 @@ export default function App() {
         {/* TAB 3: ALUNOS (ADMIN ONLY) */}
         {isAdmin && currentTab === 'alunos' && (
           <div className="max-w-3xl mx-auto">
-            <StudentManagerModal
+            <StudentManagerView
               students={students}
               routines={routines}
-              isEmbedded={true}
               onSaveStudent={handleSaveStudent}
               onDeleteStudent={handleDeleteStudent}
-              onClose={() => setActiveTab('treinos')}
             />
           </div>
         )}
@@ -396,11 +447,16 @@ export default function App() {
           routine={editingRoutine}
           students={students}
           availableExercises={exercises}
-          initialStudentId={selectedStudentFilter !== 'todos' && selectedStudentFilter !== 'geral' ? selectedStudentFilter : undefined}
+          initialStudentId={selectedStudentFilter !== 'todos' && selectedStudentFilter !== 'sem-aluno' ? selectedStudentFilter : undefined}
           onSave={handleSaveRoutine}
           onClose={() => {
             setEditingRoutine(null);
             setIsCreatingRoutine(false);
+          }}
+          onGoToExercises={() => {
+            setEditingRoutine(null);
+            setIsCreatingRoutine(false);
+            setActiveTab('exercicios');
           }}
         />
       )}
@@ -409,7 +465,7 @@ export default function App() {
       {activeWorkout && (
         <ActiveWorkoutModal
           routine={activeWorkout}
-          pastSessions={sessions}
+          studentId={currentUser.id}
           onFinishWorkout={handleFinishLiveWorkout}
           onClose={() => setActiveWorkout(null)}
         />
@@ -419,7 +475,6 @@ export default function App() {
       {selectedExerciseDetail && (
         <ExerciseDetailModal
           exercise={selectedExerciseDetail}
-          sessions={sessions}
           onClose={() => setSelectedExerciseDetail(null)}
         />
       )}

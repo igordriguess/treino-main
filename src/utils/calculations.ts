@@ -1,14 +1,14 @@
-import { WorkoutSessionLog, DayOfWeek } from '../types/workout';
+import { CardioTarget, Exercise, DayOfWeek } from '../types/workout';
 
-export const DAYS_CONFIG: { key: DayOfWeek; label: string; short: string; order: number }[] = [
-  { key: 'segunda', label: 'Segunda-feira', short: 'SEG', order: 1 },
-  { key: 'terca', label: 'Terça-feira', short: 'TER', order: 2 },
-  { key: 'quarta', label: 'Quarta-feira', short: 'QUA', order: 3 },
-  { key: 'quinta', label: 'Quinta-feira', short: 'QUI', order: 4 },
-  { key: 'sexta', label: 'Sexta-feira', short: 'SEX', order: 5 },
-  { key: 'sabado', label: 'Sábado', short: 'SÁB', order: 6 },
-  { key: 'domingo', label: 'Domingo', short: 'DOM', order: 7 },
-  { key: 'flexivel', label: 'Flexível / Livre', short: 'FLEX', order: 8 },
+export const DAYS_CONFIG: { key: DayOfWeek; label: string }[] = [
+  { key: 'segunda', label: 'Segunda-feira' },
+  { key: 'terca', label: 'Terça-feira' },
+  { key: 'quarta', label: 'Quarta-feira' },
+  { key: 'quinta', label: 'Quinta-feira' },
+  { key: 'sexta', label: 'Sexta-feira' },
+  { key: 'sabado', label: 'Sábado' },
+  { key: 'domingo', label: 'Domingo' },
+  { key: 'flexivel', label: 'Flexível / Livre' },
 ];
 
 export const MUSCLE_GROUP_LABELS: Record<string, string> = {
@@ -25,16 +25,6 @@ export const MUSCLE_GROUP_LABELS: Record<string, string> = {
   panturrilha: 'Panturrilha',
   cardio: 'Cardio',
 };
-
-/**
- * Calculates Estimated 1 Repetition Maximum using Epley formula.
- */
-export function calculate1RM(weightKg: number, reps: number): number {
-  if (weightKg <= 0 || reps <= 0) return 0;
-  if (reps === 1) return weightKg;
-  // Epley formula: w * (1 + r / 30)
-  return Math.round(weightKg * (1 + reps / 30) * 10) / 10;
-}
 
 /**
  * Calculates total volume in kg for a list of sets: sum(weight * reps) for completed sets
@@ -65,125 +55,44 @@ export function getCurrentDayOfWeek(): DayOfWeek {
   }
 }
 
-/**
- * Formats date into readable Brazilian format (ex: "28/09" or "28 de Setembro")
- */
-export function formatBrDate(dateString: string): string {
-  try {
-    const parts = dateString.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}`;
-    }
-    const d = new Date(dateString);
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-  } catch {
-    return dateString;
-  }
-}
+// --- Cardio helpers ---
 
-export interface WeeklyVolumePoint {
-  weekLabel: string;
-  volumeKg: number;
-  sessionsCount: number;
-  totalSets: number;
-  startDate: string;
-}
+export const isCardio = (ex: Pick<Exercise, 'muscleGroup'>): boolean => ex.muscleGroup === 'cardio';
 
-/**
- * Groups sessions by week (last 4 to 8 weeks) to plot weekly volume progression
- */
-export function getWeeklyVolumeProgression(sessions: WorkoutSessionLog[]): WeeklyVolumePoint[] {
-  if (!sessions || sessions.length === 0) return [];
+export const CARDIO_FIELDS: { key: keyof CardioTarget; label: string; unit: string; step: string }[] = [
+  { key: 'distanceKm', label: 'Distância', unit: 'km', step: '0.1' },
+  { key: 'durationMinutes', label: 'Tempo', unit: 'min', step: '1' },
+  { key: 'avgSpeedKmh', label: 'Velocidade média', unit: 'km/h', step: '0.1' },
+  { key: 'maxSpeedKmh', label: 'Velocidade máxima', unit: 'km/h', step: '0.1' },
+  { key: 'maxSpeedMinutes', label: 'Tempo na vel. máxima', unit: 'min', step: '1' },
+];
 
-  // Sort sessions ascending by date
-  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
-  
-  // Group by week start (Monday)
-  const map: Record<string, { volume: number; count: number; sets: number; label: string }> = {};
+export const formatCardioValue = (cardio: CardioTarget | undefined, key: keyof CardioTarget): string => {
+  const value = cardio?.[key];
+  if (value === undefined || value === null || Number.isNaN(value)) return 'Livre';
+  const unit = CARDIO_FIELDS.find((f) => f.key === key)?.unit ?? '';
+  return `${value.toLocaleString('pt-BR')} ${unit}`;
+};
 
-  sorted.forEach((session) => {
-    const d = new Date(session.date + 'T00:00:00');
-    // Find monday of this week
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(d.setDate(diff));
-    const key = monday.toISOString().slice(0, 10);
-    const month = monday.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
-    const label = `Sem ${monday.getDate()} ${month}`;
+// Short one-line summary used in lists and cards, e.g. "5 km · 30 min" or "Livre".
+const formatCardioSummary = (cardio: CardioTarget | undefined): string => {
+  const parts = (['distanceKm', 'durationMinutes', 'avgSpeedKmh'] as const)
+    .filter((k) => cardio?.[k] !== undefined)
+    .map((k) => formatCardioValue(cardio, k));
+  return parts.length ? parts.join(' · ') : 'Livre';
+};
 
-    if (!map[key]) {
-      map[key] = { volume: 0, count: 0, sets: 0, label };
-    }
-    map[key].volume += session.totalVolumeKg || 0;
-    map[key].count += 1;
-    map[key].sets += session.totalSets || 0;
+// Short prescription for any exercise: "3 × 10-12" or the cardio summary.
+export const formatPrescription = (ex: Exercise): string =>
+  isCardio(ex) ? formatCardioSummary(ex.cardio) : `${ex.targetSets} × ${ex.targetReps}`;
+
+// Removes empty cardio fields so they are stored as undefined ("Livre").
+export const cleanCardio = (cardio: CardioTarget | undefined): CardioTarget | undefined => {
+  if (!cardio) return undefined;
+  const cleaned: CardioTarget = {};
+  CARDIO_FIELDS.forEach(({ key }) => {
+    const v = cardio[key];
+    if (v !== undefined && v !== null && !Number.isNaN(v)) cleaned[key] = v;
   });
-
-  return Object.entries(map).map(([startDate, data]) => ({
-    startDate,
-    weekLabel: data.label,
-    volumeKg: Math.round(data.volume),
-    sessionsCount: data.count,
-    totalSets: data.sets,
-  }));
-}
-
-/**
- * Extracts exercise progression points (Date, Max Weight, Estimated 1RM, Volume)
- */
-export interface ExerciseProgressPoint {
-  date: string;
-  maxWeightKg: number;
-  estimated1RM: number;
-  totalVolumeKg: number;
-  bestSet: string;
-}
-
-export function getExerciseProgression(
-  sessions: WorkoutSessionLog[],
-  exerciseNameOrId: string
-): ExerciseProgressPoint[] {
-  if (!sessions || sessions.length === 0) return [];
-
-  const points: ExerciseProgressPoint[] = [];
-  const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
-
-  sorted.forEach((s) => {
-    const exLog = s.exerciseLogs.find(
-      (e) => e.exerciseId === exerciseNameOrId || e.exerciseName.toLowerCase() === exerciseNameOrId.toLowerCase()
-    );
-
-    if (exLog && exLog.sets && exLog.sets.length > 0) {
-      let maxWeight = 0;
-      let best1RM = 0;
-      let totalVolume = 0;
-      let bestSetDesc = '';
-
-      exLog.sets.forEach((set) => {
-        if (set.completed && set.weightKg > 0) {
-          const current1RM = calculate1RM(set.weightKg, set.reps);
-          if (current1RM > best1RM) {
-            best1RM = current1RM;
-            bestSetDesc = `${set.weightKg}kg × ${set.reps}`;
-          }
-          if (set.weightKg > maxWeight) {
-            maxWeight = set.weightKg;
-          }
-          totalVolume += set.weightKg * set.reps;
-        }
-      });
-
-      if (maxWeight > 0 || best1RM > 0) {
-        points.push({
-          date: s.date,
-          maxWeightKg: maxWeight,
-          estimated1RM: best1RM,
-          totalVolumeKg: totalVolume,
-          bestSet: bestSetDesc || `${maxWeight}kg`,
-        });
-      }
-    }
-  });
-
-  return points;
-}
+  return Object.keys(cleaned).length ? cleaned : undefined;
+};

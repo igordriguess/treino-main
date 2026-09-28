@@ -1,6 +1,6 @@
 {
-  "name": "IronTrack — Gestão & Progressão de Treinos",
-  "description": "Plataforma moderna para gerenciamento de treinos de academia, registro de séries, repetições, progressão de carga e gráficos de evolução semanal.",
+  "name": "IronTrack — Gestão de Treinos",
+  "description": "Plataforma para gerenciamento de treinos.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

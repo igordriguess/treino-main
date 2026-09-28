@@ -10,6 +10,25 @@
   }
 }
 
+/* Mobile: 16px form controls stop iOS from zooming in on focus; no tap flash */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role='button'],
+label {
+  touch-action: manipulation;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Play, Edit2, Clock, Calendar, Dumbbell, MoreVertical, Trash2, Copy, Eye, UserCheck } from 'lucide-react';
+import { Edit2, Calendar, Dumbbell, MoreVertical, Trash2, Copy, Eye, UserCheck, UserX, ChevronRight } from 'lucide-react';
+import { useDialog } from './DialogProvider';
 import { WorkoutRoutine, Exercise, StudentAccount } from '../types/workout';
-import { DAYS_CONFIG, MUSCLE_GROUP_LABELS } from '../utils/calculations';
+import { DAYS_CONFIG, formatPrescription, isCardio } from '../utils/calculations';
 
 interface WorkoutCardProps {
   routine: WorkoutRoutine;
@@ -27,16 +28,32 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
   onSelectExercise,
 }) => {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const { confirm } = useDialog();
 
   const dayInfo = DAYS_CONFIG.find((d) => d.key === routine.scheduledDay);
-  const totalSets = routine.exercises.reduce((acc, curr) => acc + (curr.targetSets || 0), 0);
+  const totalSets = routine.exercises.reduce((acc, curr) => acc + (isCardio(curr) ? 0 : curr.targetSets || 0), 0);
 
-  const assignedStudent = students.find((s) => s.id === routine.studentId);
+  const assignedStudents = students.filter((s) => routine.studentIds.includes(s.id));
 
   return (
-    <div className={`relative flex flex-col justify-between rounded-xl border bg-neutral-900/90 transition-all duration-200 hover:border-neutral-700 ${
-      isToday ? 'border-emerald-500/50 shadow-[0_0_24px_rgba(16,185,129,0.08)]' : 'border-neutral-800'
-    }`}>
+    <div
+      onClick={isAdmin ? undefined : () => onStart(routine)}
+      onKeyDown={
+        isAdmin
+          ? undefined
+          : (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onStart(routine);
+              }
+            }
+      }
+      role={isAdmin ? undefined : 'button'}
+      tabIndex={isAdmin ? undefined : 0}
+      className={`relative flex flex-col justify-between rounded-xl border bg-neutral-900/90 transition-all duration-200 hover:border-neutral-700 ${
+        isToday ? 'border-emerald-500/50 shadow-[0_0_24px_rgba(16,185,129,0.08)]' : 'border-neutral-800'
+      } ${isAdmin ? '' : 'cursor-pointer hover:bg-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60'}`}
+    >
       {/* Header Section */}
       <div className="p-5 pb-4">
         {/* Top meta row */}
@@ -48,16 +65,6 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
               {isToday && <span className="text-emerald-400 ml-1 font-semibold">(Hoje)</span>}
             </span>
 
-            {/* Student badge */}
-            {isAdmin && (
-              <>
-                <span aria-hidden="true" className="text-neutral-700">·</span>
-                <span className="inline-flex items-center gap-1 font-medium text-[11px] text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                  <UserCheck className="h-3 w-3" />
-                  {assignedStudent ? assignedStudent.name : 'Geral (Todos)'}
-                </span>
-              </>
-            )}
           </div>
 
           {/* Context menu for Admin */}
@@ -65,7 +72,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="p-1 text-neutral-400 hover:text-neutral-100 rounded-md hover:bg-neutral-800 transition-colors"
+                className="p-2 -m-1 text-neutral-400 hover:text-neutral-100 rounded-md hover:bg-neutral-800 transition-colors"
                 title="Opções do treino"
               >
                 <MoreVertical className="h-4 w-4" />
@@ -99,11 +106,15 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
                       Duplicar
                     </button>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setMenuOpen(false);
-                        if (confirm(`Deseja excluir "${routine.name}"?`)) {
-                          onDelete(routine.id);
-                        }
+                        const ok = await confirm({
+                          title: 'Excluir treino?',
+                          message: `"${routine.name}" será removido de todos os alunos vinculados. Esta ação não pode ser desfeita.`,
+                          confirmLabel: 'Excluir',
+                          tone: 'danger',
+                        });
+                        if (ok) onDelete(routine.id);
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors"
                     >
@@ -133,6 +144,28 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
           <span aria-hidden="true" className="text-neutral-700">·</span>
           <span>{totalSets} séries totais</span>
         </div>
+
+        {/* Assigned students (admin) */}
+        {isAdmin && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {assignedStudents.length > 0 ? (
+              assignedStudents.map((st) => (
+                <span
+                  key={st.id}
+                  className="inline-flex items-center gap-1 font-medium text-[11px] text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
+                >
+                  <UserCheck className="h-3 w-3" />
+                  {st.name}
+                </span>
+              ))
+            ) : (
+              <span className="inline-flex items-center gap-1 font-medium text-[11px] text-neutral-400 bg-neutral-800/60 px-2 py-0.5 rounded border border-neutral-700">
+                <UserX className="h-3 w-3" />
+                Sem aluno vinculado
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Exercises List preview */}
@@ -144,8 +177,14 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
           {routine.exercises.map((ex, index) => (
             <div
               key={ex.id || index}
-              onClick={() => onSelectExercise(ex)}
-              className="group flex items-center justify-between rounded-md p-1.5 text-xs text-neutral-300 hover:bg-neutral-800/60 cursor-pointer transition-colors"
+              onClick={
+                isAdmin
+                  ? () => onSelectExercise(ex)
+                  : undefined
+              }
+              className={`group flex items-center justify-between rounded-md p-1.5 text-xs text-neutral-300 transition-colors ${
+                isAdmin ? 'hover:bg-neutral-800/60 cursor-pointer' : ''
+              }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="font-mono text-[11px] text-neutral-500 tabular-nums shrink-0">
@@ -172,8 +211,10 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
               </div>
 
               <div className="flex items-center gap-2 font-mono tabular-nums text-neutral-400 shrink-0 text-[11px]">
-                <span>{ex.targetSets} × {ex.targetReps}</span>
-                <Eye className="h-3.5 w-3.5 text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <span>{formatPrescription(ex)}</span>
+                {isAdmin && (
+                  <Eye className="h-3.5 w-3.5 text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                )}
               </div>
             </div>
           ))}
@@ -188,21 +229,20 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
 
       {/* Card Actions Footer */}
       <div className="flex items-center gap-2 border-t border-neutral-800 p-4 bg-neutral-950/40 rounded-b-xl">
-        {isAdmin && (
+        {isAdmin ? (
           <button
             onClick={() => onEdit(routine)}
-            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 px-3 text-xs font-medium text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 py-2 px-3 text-xs font-medium text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
           >
+            <Edit2 className="h-3.5 w-3.5" />
             Editar Treino
           </button>
+        ) : (
+          <span className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 py-2 px-3 text-xs font-bold text-neutral-950 shadow-sm">
+            <span>Ver Treino</span>
+            <ChevronRight className="h-3.5 w-3.5" />
+          </span>
         )}
-        <button
-          onClick={() => onStart(routine)}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 py-2 px-3 text-xs font-bold text-neutral-950 hover:bg-emerald-400 transition-colors shadow-sm"
-        >
-          <Play className="h-3.5 w-3.5 fill-current" />
-          <span>Iniciar Treino</span>
-        </button>
       </div>
     </div>
   );

@@ -1,24 +1,22 @@
 import React, { useState } from 'react';
-import { X, UserPlus, Users, Trash2, KeyRound, Check, Dumbbell, Shield, User } from 'lucide-react';
+import { UserPlus, Users, Trash2, Check } from 'lucide-react';
 import { StudentAccount, WorkoutRoutine } from '../types/workout';
+import { useDialog } from './DialogProvider';
 
-interface StudentManagerModalProps {
+interface StudentManagerViewProps {
   students: StudentAccount[];
   routines: WorkoutRoutine[];
-  isEmbedded?: boolean;
   onSaveStudent: (student: StudentAccount) => void;
   onDeleteStudent: (studentId: string) => void;
-  onClose: () => void;
 }
 
-export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
+export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
   students,
   routines,
-  isEmbedded = false,
   onSaveStudent,
   onDeleteStudent,
-  onClose,
 }) => {
+  const { confirm } = useDialog();
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -67,10 +65,10 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
     setShowAddForm(false);
   };
 
-  const content = (
-    <div className={`relative w-full rounded-2xl border border-neutral-800 bg-neutral-900 shadow-2xl overflow-hidden flex flex-col ${isEmbedded ? '' : 'max-w-2xl my-auto max-h-[90vh]'}`}>
+  return (
+    <div className="relative w-full rounded-2xl border border-neutral-800 bg-neutral-900 shadow-2xl overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4 bg-neutral-950/80">
+      <div className="flex items-center justify-between border-b border-neutral-800 px-4 sm:px-6 py-3 sm:py-4 bg-neutral-950/80">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <Users className="h-5 w-5" />
@@ -84,19 +82,10 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
             </p>
           </div>
         </div>
-
-        {!isEmbedded && (
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
       </div>
 
       {/* Content Body */}
-      <div className="overflow-y-auto p-6 space-y-6 flex-1">
+      <div className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1">
         {/* Top action: Add new student */}
         {!showAddForm ? (
           <button
@@ -108,7 +97,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
           </button>
         ) : (
           <form onSubmit={handleCreateStudent} className="rounded-xl border border-emerald-500/30 bg-neutral-950/80 p-5 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-850">
+            <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
               <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                 <UserPlus className="h-4 w-4" />
                 Novo Aluno
@@ -219,7 +208,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
           {students.length > 0 ? (
             <div className="space-y-2.5">
               {students.map((st) => {
-                const studentRoutinesCount = routines.filter((r) => r.studentId === st.id).length;
+                const studentRoutinesCount = routines.filter((r) => r.studentIds.includes(st.id)).length;
 
                 return (
                   <div
@@ -227,7 +216,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
                     className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-neutral-850 border border-neutral-800 flex items-center justify-center text-neutral-300 font-bold shrink-0">
+                      <div className="h-9 w-9 rounded-lg bg-neutral-800 border border-neutral-800 flex items-center justify-center text-neutral-300 font-bold shrink-0">
                         {st.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -266,10 +255,14 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
 
                     <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                       <button
-                        onClick={() => {
-                          if (confirm(`Deseja remover o acesso de "${st.name}"?`)) {
-                            onDeleteStudent(st.id);
-                          }
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Excluir aluno?',
+                            message: `${st.name} perderá o acesso à plataforma e será desvinculado dos treinos.`,
+                            confirmLabel: 'Excluir',
+                            tone: 'danger',
+                          });
+                          if (ok) onDeleteStudent(st.id);
                         }}
                         className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                         title="Excluir aluno"
@@ -292,16 +285,6 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
           )}
         </div>
       </div>
-    </div>
-  );
-
-  if (isEmbedded) {
-    return content;
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-sm overflow-y-auto">
-      {content}
     </div>
   );
 };
