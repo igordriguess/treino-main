@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Dados da plataforma (treinos, exercícios, alunos e logins)
+data/
