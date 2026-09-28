@@ -117,6 +117,11 @@ export const ExerciseManagerView: React.FC<ExerciseManagerViewProps> = ({
     return matchQuery && matchMuscle;
   });
 
+  // With "Todos os Grupos Musculares" the list is shown in alphabetical order
+  if (filterMuscle === 'todos') {
+    filtered.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Header */}

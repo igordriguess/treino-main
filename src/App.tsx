@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Dumbbell, Plus, Search, Users, ShieldCheck, Loader2, AlertCircle, RotateCcw } from 'lucide-react';
+import { Dumbbell, Plus, Search, Users, ShieldCheck, Loader2, AlertCircle, RotateCcw, X } from 'lucide-react';
 
 import { WorkoutRoutine, WorkoutSessionLog, Exercise, StudentAccount, AuthUser } from './types/workout';
 import { AppData, CollectionName, loadAppData, saveCollection, loadCurrentUser, saveCurrentUser } from './utils/storage';
@@ -150,8 +150,12 @@ export default function App() {
   const currentTab = !isAdmin ? 'treinos' : activeTab;
 
   // Student management handlers
-  const handleSaveStudent = (newStudent: StudentAccount) => {
-    setStudents([...students, newStudent]);
+  const handleSaveStudent = (student: StudentAccount) => {
+    setStudents((prev) =>
+      prev.some((s) => s.id === student.id)
+        ? prev.map((s) => (s.id === student.id ? student : s))
+        : [...prev, student]
+    );
   };
 
   const handleDeleteStudent = (studentId: string) => {
@@ -222,23 +226,24 @@ export default function App() {
   // Filter routines strictly:
   // - Students ONLY see routines assigned directly to them!
   // - Admin can see all or filter by student
+  // Case- and accent-insensitive: "triceps" finds "Tríceps"
+  const normalize = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const query = normalize(searchQuery.trim());
+
   const visibleRoutines = routines.filter((r) => {
     if (!isAdmin) {
       // Student strictly sees ONLY workouts assigned to their account
-      return r.studentIds.includes(currentUser.id);
-    }
-
-    // Admin filter
-    if (selectedStudentFilter !== 'todos') {
+      if (!r.studentIds.includes(currentUser.id)) return false;
+    } else if (selectedStudentFilter !== 'todos') {
+      // Admin filter by student
       if (selectedStudentFilter === 'sem-aluno' && r.studentIds.length > 0) return false;
       if (selectedStudentFilter !== 'sem-aluno' && !r.studentIds.includes(selectedStudentFilter)) return false;
     }
 
-    // Text search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = r.name.toLowerCase().includes(q);
-      const matchEx = r.exercises.some((e) => e.name.toLowerCase().includes(q));
+    // Text search by workout name or exercise name
+    if (query) {
+      const matchName = normalize(r.name).includes(query);
+      const matchEx = r.exercises.some((e) => normalize(e.name).includes(query));
       if (!matchName && !matchEx) return false;
     }
 
@@ -345,15 +350,27 @@ export default function App() {
                 )}
 
                 {/* Search */}
-                <div className="relative sm:w-56">
-                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-neutral-500" />
+                <div className="relative w-full sm:w-64">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-500" />
                   <input
-                    type="text"
+                    type="search"
+                    enterKeyHint="search"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar treino..."
-                    className="w-full rounded-lg border border-neutral-800 bg-neutral-900 pl-8 pr-3 py-1.5 text-xs text-neutral-200 placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none"
+                    placeholder="Buscar treino ou exercício..."
+                    aria-label="Buscar treino ou exercício"
+                    className="w-full appearance-none rounded-lg border border-neutral-800 bg-neutral-900 pl-8 pr-9 py-2.5 sm:py-1.5 text-xs text-neutral-200 placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
                   />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      aria-label="Limpar busca"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-neutral-500 hover:text-neutral-200"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -382,7 +399,26 @@ export default function App() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-neutral-500 border border-neutral-800 mb-4">
                   <Dumbbell className="h-7 w-7 text-neutral-600" />
                 </div>
-                {isAdmin ? (
+                {query || (isAdmin && selectedStudentFilter !== 'todos') ? (
+                  <>
+                    <h3 className="text-lg font-bold text-neutral-200">Nenhum treino encontrado</h3>
+                    <p className="text-xs text-neutral-400 max-w-md mx-auto mt-1 leading-relaxed">
+                      {query
+                        ? `Nenhum treino ou exercício corresponde a "${searchQuery.trim()}".`
+                        : 'Nenhum treino corresponde ao filtro selecionado.'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSelectedStudentFilter('todos');
+                      }}
+                      className="mt-5 inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2.5 text-xs font-semibold text-neutral-200 hover:bg-neutral-700 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Limpar busca</span>
+                    </button>
+                  </>
+                ) : isAdmin ? (
                   <>
                     <h3 className="text-lg font-bold text-neutral-200">
                       Nenhum treino criado ainda

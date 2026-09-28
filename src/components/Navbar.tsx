@@ -37,9 +37,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-stretch justify-between gap-3 px-4 sm:px-6 lg:px-8">
           {/* Wordmark */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            {/* A full navigation to "/" reloads the data and resets to the home tab */}
+            <a
+              href="/"
+              title="Voltar ao início"
+              aria-label="Voltar ao início"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 transition-colors hover:bg-emerald-500/20 hover:border-emerald-500/40 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+            >
               <Dumbbell className="h-5 w-5" />
-            </div>
+            </a>
             <div className="min-w-0">
               <span className="text-base font-bold tracking-tight text-neutral-100 block leading-tight">
                 IronTrack

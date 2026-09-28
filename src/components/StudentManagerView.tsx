@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { UserPlus, Users, Trash2, Check } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { UserPlus, Users, Trash2, Check, Edit3, UserCog } from 'lucide-react';
 import { StudentAccount, WorkoutRoutine } from '../types/workout';
 import { useDialog } from './DialogProvider';
 
@@ -10,14 +10,20 @@ interface StudentManagerViewProps {
   onDeleteStudent: (studentId: string) => void;
 }
 
+const INPUT =
+  'w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2.5 sm:py-2 text-sm sm:text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none';
+
 export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
   students,
   routines,
   onSaveStudent,
   onDeleteStudent,
 }) => {
-  const { confirm } = useDialog();
-  const [showAddForm, setShowAddForm] = useState(false);
+  const { confirm, notify } = useDialog();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<StudentAccount | null>(null);
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('1234');
@@ -25,7 +31,26 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleCreateStudent = (e: React.FormEvent) => {
+  const openForm = (student: StudentAccount | null) => {
+    setEditing(student);
+    setName(student?.name ?? '');
+    setUsername(student?.username ?? '');
+    setPassword(student?.password ?? '1234');
+    setGoal(student?.goal ?? '');
+    setNotes(student?.notes ?? '');
+    setErrorMsg('');
+    setFormOpen(true);
+    // On mobile the list can be long: bring the form into view
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditing(null);
+    setErrorMsg('');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -40,29 +65,30 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
       return;
     }
 
-    // Check if username already exists
-    if (students.some((s) => s.username.toLowerCase() === cleanUsername) || cleanUsername === 'admin') {
+    const cleanPassword = password.trim();
+    if (!cleanPassword) {
+      setErrorMsg('Informe a senha de acesso.');
+      return;
+    }
+
+    // Username must be unique (the student being edited may keep their own)
+    const taken = students.some((s) => s.id !== editing?.id && s.username.toLowerCase() === cleanUsername);
+    if (taken || cleanUsername === 'admin') {
       setErrorMsg('Este nome de usuário já está em uso.');
       return;
     }
 
-    const newStudent: StudentAccount = {
-      id: `student-${Date.now()}`,
+    onSaveStudent({
+      id: editing?.id ?? `student-${Date.now()}`,
+      createdAt: editing?.createdAt ?? new Date().toISOString(),
       name: name.trim(),
       username: cleanUsername,
-      password: password.trim() || '1234',
-      createdAt: new Date().toISOString(),
+      password: cleanPassword,
       goal: goal.trim() || undefined,
       notes: notes.trim() || undefined,
-    };
-
-    onSaveStudent(newStudent);
-    setName('');
-    setUsername('');
-    setPassword('1234');
-    setGoal('');
-    setNotes('');
-    setShowAddForm(false);
+    });
+    notify(editing ? `Dados de ${name.trim()} atualizados.` : `${name.trim()} cadastrado(a).`);
+    closeForm();
   };
 
   return (
@@ -70,7 +96,7 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 px-4 sm:px-6 py-3 sm:py-4 bg-neutral-950/80">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <Users className="h-5 w-5" />
           </div>
           <div>
@@ -78,7 +104,7 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
               Gerenciar Acessos dos Alunos
             </h2>
             <p className="text-xs text-neutral-400">
-              Crie os logins e senhas para que cada aluno acesse e visualize apenas os seus treinos.
+              Crie e edite os logins e senhas para que cada aluno acesse apenas os seus treinos.
             </p>
           </div>
         </div>
@@ -86,26 +112,30 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
 
       {/* Content Body */}
       <div className="overflow-y-auto p-4 sm:p-6 space-y-6 flex-1">
-        {/* Top action: Add new student */}
-        {!showAddForm ? (
+        {/* Create / edit form */}
+        {!formOpen ? (
           <button
-            onClick={() => setShowAddForm(true)}
-            className="w-full py-3 px-4 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-950/10 hover:bg-emerald-950/20 text-emerald-400 font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            onClick={() => openForm(null)}
+            className="w-full py-3.5 sm:py-3 px-4 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-950/10 hover:bg-emerald-950/20 text-emerald-400 font-semibold text-sm sm:text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <UserPlus className="h-4 w-4" />
             <span>Cadastrar Novo Aluno</span>
           </button>
         ) : (
-          <form onSubmit={handleCreateStudent} className="rounded-xl border border-emerald-500/30 bg-neutral-950/80 p-5 space-y-4">
+          <form
+            ref={formRef}
+            onSubmit={handleSubmit}
+            className="scroll-mt-20 rounded-xl border border-emerald-500/30 bg-neutral-950/80 p-4 sm:p-5 space-y-4"
+          >
             <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
               <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                <UserPlus className="h-4 w-4" />
-                Novo Aluno
+                {editing ? <UserCog className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                {editing ? `Editar Aluno · ${editing.name}` : 'Novo Aluno'}
               </h3>
               <button
                 type="button"
-                onClick={() => setShowAddForm(false)}
-                className="text-xs text-neutral-400 hover:text-neutral-200"
+                onClick={closeForm}
+                className="-mr-2 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
               >
                 Cancelar
               </button>
@@ -119,7 +149,7 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
                   Nome Completo *
                 </label>
                 <input
@@ -128,40 +158,45 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ex: Carlos Silva"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                  className={INPUT}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
                   Login / Usuário *
                 </label>
                 <input
                   type="text"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Ex: carlossilva"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none lowercase"
+                  className={`${INPUT} lowercase`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
                   Senha de Acesso *
                 </label>
                 <input
                   type="text"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="off"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="1234"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none font-mono"
+                  placeholder="Nova senha"
+                  className={`${INPUT} font-mono`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
                   Objetivo Principal
                 </label>
                 <input
@@ -169,13 +204,13 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
                   placeholder="Ex: Hipertrofia, Força, Emagrecimento"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                  className={INPUT}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
                 Observações / Restrições (opcional)
               </label>
               <input
@@ -183,17 +218,17 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Ex: Evitar impacto no joelho direito, iniciante..."
-                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+                className={INPUT}
               />
             </div>
 
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-neutral-950 hover:bg-emerald-400 transition-colors shadow-sm"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-3 sm:py-2 text-sm sm:text-xs font-bold text-neutral-950 hover:bg-emerald-400 transition-colors shadow-sm"
               >
                 <Check className="h-4 w-4" />
-                <span>Cadastrar Aluno</span>
+                <span>{editing ? 'Salvar Alterações' : 'Cadastrar Aluno'}</span>
               </button>
             </div>
           </form>
@@ -209,18 +244,21 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
             <div className="space-y-2.5">
               {students.map((st) => {
                 const studentRoutinesCount = routines.filter((r) => r.studentIds.includes(st.id)).length;
+                const isBeingEdited = editing?.id === st.id;
 
                 return (
                   <div
                     key={st.id}
-                    className="rounded-xl border border-neutral-800 bg-neutral-950/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className={`rounded-xl border bg-neutral-950/70 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isBeingEdited ? 'border-emerald-500/50' : 'border-neutral-800'
+                    }`}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
                       <div className="h-9 w-9 rounded-lg bg-neutral-800 border border-neutral-800 flex items-center justify-center text-neutral-300 font-bold shrink-0">
                         {st.name.charAt(0).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-semibold text-sm text-neutral-100">
                             {st.name}
                           </h4>
@@ -231,7 +269,7 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                           )}
                         </div>
 
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-neutral-400 font-mono">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400 font-mono">
                           <span>
                             Login: <strong className="text-neutral-200">{st.username}</strong>
                           </span>
@@ -253,7 +291,15 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
+                      <button
+                        onClick={() => openForm(st)}
+                        className="p-2.5 rounded-lg text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800 transition-colors"
+                        title="Editar aluno"
+                        aria-label={`Editar ${st.name}`}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={async () => {
                           const ok = await confirm({
@@ -262,10 +308,13 @@ export const StudentManagerView: React.FC<StudentManagerViewProps> = ({
                             confirmLabel: 'Excluir',
                             tone: 'danger',
                           });
-                          if (ok) onDeleteStudent(st.id);
+                          if (!ok) return;
+                          if (isBeingEdited) closeForm();
+                          onDeleteStudent(st.id);
                         }}
-                        className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        className="p-2.5 rounded-lg text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                         title="Excluir aluno"
+                        aria-label={`Excluir ${st.name}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

@@ -9,7 +9,8 @@
     "start": "tsx server.ts --prod",
     "preview": "vite build && tsx server.ts --prod",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "import:vercel": "tsx scripts/import-to-vercel.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

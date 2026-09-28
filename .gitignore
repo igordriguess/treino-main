@@ -9,3 +9,6 @@ coverage/
 
 # Dados da plataforma (treinos, exercícios, alunos e logins)
 data/
+
+# Scripts de build e deploy
+scripts/

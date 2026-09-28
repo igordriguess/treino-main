@@ -54,7 +54,7 @@ export const ExerciseDetailModal: React.FC<ExerciseDetailModalProps> = ({ exerci
                 <img
                   src={exercise.imageUrl}
                   alt={exercise.name}
-                  className="w-full max-h-[360px] object-contain"
+                  className="w-full max-h-90 object-contain"
                   referrerPolicy="no-referrer"
                 />
                 <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg bg-black/70 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-200 group-hover:bg-black/90 transition-colors">
